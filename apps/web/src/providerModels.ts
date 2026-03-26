@@ -2,6 +2,7 @@ import {
   DEFAULT_MODEL_BY_PROVIDER,
   type ClaudeModelOptions,
   type CodexModelOptions,
+  type CursorModelOptions,
   type ModelCapabilities,
   type ProviderKind,
   type ServerProvider,
@@ -86,6 +87,29 @@ export function normalizeCodexModelOptionsWithCapabilities(
       ? { reasoningEffort: reasoningEffort as CodexModelOptions["reasoningEffort"] }
       : {}),
     ...(fastModeEnabled ? { fastMode: true } : {}),
+  };
+  return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
+}
+
+export function normalizeCursorModelOptionsWithCapabilities(
+  caps: ModelCapabilities,
+  modelOptions: CursorModelOptions | null | undefined,
+): CursorModelOptions | undefined {
+  const defaultEffort = getDefaultEffort(caps);
+  const reasoning = trimOrNull(modelOptions?.reasoning);
+  const reasoningValue =
+    reasoning && hasEffortLevel(caps, reasoning) && reasoning !== defaultEffort
+      ? (reasoning as CursorModelOptions["reasoning"])
+      : undefined;
+  const fastMode = caps.supportsFastMode && modelOptions?.fastMode === true ? true : undefined;
+  const thinking =
+    caps.supportsThinkingToggle && modelOptions?.thinking === false ? false : undefined;
+  const claudeOpusTier = modelOptions?.claudeOpusTier ?? undefined;
+  const nextOptions: CursorModelOptions = {
+    ...(reasoningValue ? { reasoning: reasoningValue } : {}),
+    ...(fastMode ? { fastMode: true } : {}),
+    ...(thinking === false ? { thinking: false } : {}),
+    ...(claudeOpusTier ? { claudeOpusTier } : {}),
   };
   return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
 }

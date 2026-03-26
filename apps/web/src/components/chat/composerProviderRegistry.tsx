@@ -7,20 +7,18 @@ import {
 } from "@t3tools/contracts";
 import {
   isClaudeUltrathinkPrompt,
-  normalizeCursorModelOptions,
   trimOrNull,
   getDefaultEffort,
   hasEffortLevel,
 } from "@t3tools/shared/model";
-import type { CursorModelOptions } from "@t3tools/contracts";
 import type { ReactNode } from "react";
 import {
   getProviderModelCapabilities,
   normalizeClaudeModelOptionsWithCapabilities,
   normalizeCodexModelOptionsWithCapabilities,
+  normalizeCursorModelOptionsWithCapabilities,
 } from "../../providerModels";
 import { TraitsMenuContent, TraitsPicker } from "./TraitsPicker";
-import { CursorTraitsMenuContent, CursorTraitsPicker } from "./CursorTraitsPicker";
 
 export type ComposerProviderStateInput = {
   provider: ProviderKind;
@@ -72,7 +70,9 @@ function getProviderStateFromCapabilities(
       ? providerOptions.effort
       : "reasoningEffort" in providerOptions
         ? providerOptions.reasoningEffort
-        : null
+        : "reasoning" in providerOptions
+          ? providerOptions.reasoning
+          : null
     : null;
 
   const draftEffort = trimOrNull(rawEffort);
@@ -91,7 +91,9 @@ function getProviderStateFromCapabilities(
   const normalizedOptions =
     provider === "codex"
       ? normalizeCodexModelOptionsWithCapabilities(caps, providerOptions)
-      : normalizeClaudeModelOptionsWithCapabilities(caps, providerOptions);
+      : provider === "cursor"
+        ? normalizeCursorModelOptionsWithCapabilities(caps, providerOptions)
+        : normalizeClaudeModelOptionsWithCapabilities(caps, providerOptions);
 
   // Ultrathink styling (driven by capabilities data, not provider identity)
   const ultrathinkActive =
@@ -175,26 +177,34 @@ const composerProviderRegistry: Record<ProviderKind, ProviderRegistryEntry> = {
     ),
   },
   cursor: {
-    getState: ({ model, modelOptions }) => {
-      const normalized = normalizeCursorModelOptions(model, modelOptions?.cursor);
-      return {
-        provider: "cursor" as const,
-        promptEffort: null,
-        modelOptionsForDispatch: normalized ?? undefined,
-      };
-    },
-    renderTraitsMenuContent: ({ threadId, model, modelOptions }) => (
-      <CursorTraitsMenuContent
+    getState: (input) => getProviderStateFromCapabilities(input),
+    renderTraitsMenuContent: ({
+      threadId,
+      model,
+      models,
+      modelOptions,
+      prompt,
+      onPromptChange,
+    }) => (
+      <TraitsMenuContent
+        provider="cursor"
+        models={models}
         threadId={threadId}
         model={model}
-        cursorModelOptions={(modelOptions as CursorModelOptions | undefined) ?? null}
+        modelOptions={modelOptions}
+        prompt={prompt}
+        onPromptChange={onPromptChange}
       />
     ),
-    renderTraitsPicker: ({ threadId, model, modelOptions }) => (
-      <CursorTraitsPicker
+    renderTraitsPicker: ({ threadId, model, models, modelOptions, prompt, onPromptChange }) => (
+      <TraitsPicker
+        provider="cursor"
+        models={models}
         threadId={threadId}
         model={model}
-        cursorModelOptions={(modelOptions as CursorModelOptions | undefined) ?? null}
+        modelOptions={modelOptions}
+        prompt={prompt}
+        onPromptChange={onPromptChange}
       />
     ),
   },

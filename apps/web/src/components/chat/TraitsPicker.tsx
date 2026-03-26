@@ -1,6 +1,7 @@
 import {
   type ClaudeModelOptions,
   type CodexModelOptions,
+  type CursorModelOptions,
   type ProviderKind,
   type ProviderModelOptions,
   type ServerProviderModel,
@@ -50,7 +51,16 @@ function getRawEffort(
   if (provider === "codex") {
     return trimOrNull((modelOptions as CodexModelOptions | undefined)?.reasoningEffort);
   }
+  if (provider === "cursor") {
+    return trimOrNull((modelOptions as CursorModelOptions | undefined)?.reasoning);
+  }
   return trimOrNull((modelOptions as ClaudeModelOptions | undefined)?.effort);
+}
+
+function getEffortKey(provider: ProviderKind): string {
+  if (provider === "codex") return "reasoningEffort";
+  if (provider === "cursor") return "reasoning";
+  return "effort";
 }
 
 function buildNextOptions(
@@ -58,10 +68,7 @@ function buildNextOptions(
   modelOptions: ProviderOptions | null | undefined,
   patch: Record<string, unknown>,
 ): ProviderOptions {
-  if (provider === "codex") {
-    return { ...(modelOptions as CodexModelOptions | undefined), ...patch } as CodexModelOptions;
-  }
-  return { ...(modelOptions as ClaudeModelOptions | undefined), ...patch } as ClaudeModelOptions;
+  return { ...(modelOptions as Record<string, unknown> | undefined), ...patch } as ProviderOptions;
 }
 
 function getSelectedTraits(
@@ -177,7 +184,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
         onPromptChange(nextPrompt);
         return;
       }
-      const effortKey = provider === "codex" ? "reasoningEffort" : "effort";
+      const effortKey = getEffortKey(provider);
       updateModelOptions(
         buildNextOptions(provider, modelOptions, { [effortKey]: nextOption.value }),
       );
