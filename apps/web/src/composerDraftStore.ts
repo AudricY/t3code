@@ -1,11 +1,11 @@
 import {
-  CODEX_REASONING_EFFORT_OPTIONS,
   CURSOR_REASONING_OPTIONS,
   DEFAULT_MODEL_BY_PROVIDER,
-  type ClaudeCodeEffort,
   type CodexReasoningEffort,
   type CursorModelOptions,
   type CursorReasoningOption,
+  ClaudeAgentEffort,
+  CodexReasoningEffort,
   type EnvironmentId,
   ModelSelection,
   ProjectId,
@@ -108,7 +108,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
 type PersistedComposerThreadDraftState = typeof PersistedComposerThreadDraftState.Type;
 
 const LegacyCodexFields = Schema.Struct({
-  effort: Schema.optionalKey(Schema.Literals(CODEX_REASONING_EFFORT_OPTIONS)),
+  effort: Schema.optionalKey(CodexReasoningEffort),
   codexFastMode: Schema.optionalKey(Schema.Boolean),
   serviceTier: Schema.optionalKey(Schema.String),
 });
@@ -554,19 +554,16 @@ function normalizeProviderModelOptions(
       ? (candidate.cursor as Record<string, unknown>)
       : null;
 
-  const codexReasoningEffort: CodexReasoningEffort | undefined =
-    codexCandidate?.reasoningEffort === "low" ||
-    codexCandidate?.reasoningEffort === "medium" ||
-    codexCandidate?.reasoningEffort === "high" ||
-    codexCandidate?.reasoningEffort === "xhigh"
-      ? codexCandidate.reasoningEffort
-      : provider === "codex" &&
-          (legacy?.effort === "low" ||
-            legacy?.effort === "medium" ||
-            legacy?.effort === "high" ||
-            legacy?.effort === "xhigh")
+  const isCodexReasoningEffort = Schema.is(CodexReasoningEffort);
+  const isClaudeAgentEffort = Schema.is(ClaudeAgentEffort);
+
+  const codexReasoningEffort = isCodexReasoningEffort(codexCandidate?.reasoningEffort)
+    ? codexCandidate.reasoningEffort
+    : provider === "codex"
+      ? isCodexReasoningEffort(legacy?.effort)
         ? legacy.effort
-        : undefined;
+        : undefined
+      : undefined;
   const codexFastMode =
     codexCandidate?.fastMode === true
       ? true
@@ -590,14 +587,9 @@ function normalizeProviderModelOptions(
       : claudeCandidate?.thinking === false
         ? false
         : undefined;
-  const claudeEffort: ClaudeCodeEffort | undefined =
-    claudeCandidate?.effort === "low" ||
-    claudeCandidate?.effort === "medium" ||
-    claudeCandidate?.effort === "high" ||
-    claudeCandidate?.effort === "max" ||
-    claudeCandidate?.effort === "ultrathink"
-      ? claudeCandidate.effort
-      : undefined;
+  const claudeEffort = isClaudeAgentEffort(claudeCandidate?.effort)
+    ? claudeCandidate.effort
+    : undefined;
   const claudeFastMode =
     claudeCandidate?.fastMode === true
       ? true

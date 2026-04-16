@@ -3,33 +3,44 @@ import { TrimmedNonEmptyString } from "./baseSchemas";
 import type { ProviderKind } from "./orchestration";
 
 export const CODEX_REASONING_EFFORT_OPTIONS = ["xhigh", "high", "medium", "low"] as const;
-export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORT_OPTIONS)[number];
-export const CLAUDE_CODE_EFFORT_OPTIONS = ["low", "medium", "high", "max", "ultrathink"] as const;
-export type ClaudeCodeEffort = (typeof CLAUDE_CODE_EFFORT_OPTIONS)[number];
+export const CodexReasoningEffort = Schema.Literals(CODEX_REASONING_EFFORT_OPTIONS);
+export type CodexReasoningEffort = typeof CodexReasoningEffort.Type;
+export const CLAUDE_AGENT_EFFORT_OPTIONS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultrathink",
+] as const;
+export const ClaudeAgentEffort = Schema.Literals(CLAUDE_AGENT_EFFORT_OPTIONS);
+export type ClaudeAgentEffort = typeof ClaudeAgentEffort.Type;
+export type ClaudeCodeEffort = ClaudeAgentEffort;
 export const CURSOR_REASONING_OPTIONS = ["low", "medium", "high", "max", "xhigh"] as const;
-export type CursorReasoningOption = (typeof CURSOR_REASONING_OPTIONS)[number];
+export const CursorReasoningOption = Schema.Literals(CURSOR_REASONING_OPTIONS);
+export type CursorReasoningOption = typeof CursorReasoningOption.Type;
 
 export type ProviderReasoningEffort =
   | CodexReasoningEffort
-  | ClaudeCodeEffort
+  | ClaudeAgentEffort
   | CursorReasoningOption;
 
 export const CodexModelOptions = Schema.Struct({
-  reasoningEffort: Schema.optional(Schema.Literals(CODEX_REASONING_EFFORT_OPTIONS)),
+  reasoningEffort: Schema.optional(CodexReasoningEffort),
   fastMode: Schema.optional(Schema.Boolean),
 });
 export type CodexModelOptions = typeof CodexModelOptions.Type;
 
 export const ClaudeModelOptions = Schema.Struct({
   thinking: Schema.optional(Schema.Boolean),
-  effort: Schema.optional(Schema.Literals(CLAUDE_CODE_EFFORT_OPTIONS)),
+  effort: Schema.optional(ClaudeAgentEffort),
   fastMode: Schema.optional(Schema.Boolean),
   contextWindow: Schema.optional(Schema.String),
 });
 export type ClaudeModelOptions = typeof ClaudeModelOptions.Type;
 
 export const CursorModelOptions = Schema.Struct({
-  reasoning: Schema.optional(Schema.Literals(CURSOR_REASONING_OPTIONS)),
+  reasoning: Schema.optional(CursorReasoningOption),
   fastMode: Schema.optional(Schema.Boolean),
   thinking: Schema.optional(Schema.Boolean),
   contextWindow: Schema.optional(Schema.String),
@@ -91,7 +102,9 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     "gpt-5.3-spark": "gpt-5.3-codex-spark",
   },
   claudeAgent: {
-    opus: "claude-opus-4-6",
+    opus: "claude-opus-4-7",
+    "opus-4.7": "claude-opus-4-7",
+    "claude-opus-4.7": "claude-opus-4-7",
     "opus-4.6": "claude-opus-4-6",
     "claude-opus-4.6": "claude-opus-4-6",
     "claude-opus-4-6-20251117": "claude-opus-4-6",
