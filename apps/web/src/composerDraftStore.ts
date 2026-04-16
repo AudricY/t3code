@@ -1,7 +1,6 @@
 import {
   CURSOR_REASONING_OPTIONS,
   DEFAULT_MODEL_BY_PROVIDER,
-  type CodexReasoningEffort,
   type CursorModelOptions,
   type CursorReasoningOption,
   ClaudeAgentEffort,
