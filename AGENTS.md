@@ -17,7 +17,7 @@ Personal fork of `pingdotgg/t3code`. `origin` = fork, `upstream` = pingdotgg (fe
 
 **Web-only.** `apps/desktop` and `apps/marketing` are removed and must not be reintroduced. No Electron, auto-update, IPC/preload, native packaging, or desktop-only branches in server code. Running model is `bun start` (optionally a PWA).
 
-When merging from `upstream/main`, drop desktop/marketing changes; keep server, web, and packages.
+See [FORK.md](./FORK.md) for sync commands, divergence categories, and rebase gotchas.
 
 ## Core Priorities
 
