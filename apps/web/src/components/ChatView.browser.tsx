@@ -452,6 +452,10 @@ function toShellThread(thread: OrchestrationReadModel["threads"][number]) {
     hasPendingApprovals: false,
     hasPendingUserInput: false,
     hasActionableProposedPlan: false,
+    ...(thread.forkedFromThreadId !== undefined
+      ? { forkedFromThreadId: thread.forkedFromThreadId }
+      : {}),
+    ...(thread.forkedFromTurnId !== undefined ? { forkedFromTurnId: thread.forkedFromTurnId } : {}),
   };
 }
 

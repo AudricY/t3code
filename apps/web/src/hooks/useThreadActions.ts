@@ -1,5 +1,5 @@
 import { parseScopedThreadKey, scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime";
-import { type ScopedThreadRef, ThreadId } from "@t3tools/contracts";
+import { type ScopedThreadRef, ThreadId, type TurnId } from "@t3tools/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useRef } from "react";
@@ -9,7 +9,7 @@ import { useComposerDraftStore } from "../composerDraftStore";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { ensureEnvironmentApi, readEnvironmentApi } from "../environmentApi";
 import { invalidateGitQueries } from "../lib/gitReactQuery";
-import { newCommandId } from "../lib/utils";
+import { newCommandId, newThreadId } from "../lib/utils";
 import { readLocalApi } from "../localApi";
 import {
   selectProjectByRef,
@@ -270,10 +270,40 @@ export function useThreadActions() {
     [confirmThreadDelete, deleteThread, resolveThreadTarget],
   );
 
+  const forkThread = useCallback(
+    async (input: { sourceThreadRef: ScopedThreadRef; sourceTurnId: TurnId; title?: string }) => {
+      const api = readEnvironmentApi(input.sourceThreadRef.environmentId);
+      if (!api) return null;
+      const resolved = resolveThreadTarget(input.sourceThreadRef);
+      if (!resolved) return null;
+      const { thread } = resolved;
+
+      const newId = newThreadId();
+      await api.orchestration.dispatchCommand({
+        type: "thread.fork",
+        commandId: newCommandId(),
+        threadId: newId,
+        sourceThreadId: input.sourceThreadRef.threadId,
+        sourceTurnId: input.sourceTurnId,
+        title: input.title ?? `Fork of ${thread.title}`,
+        createdAt: new Date().toISOString(),
+      });
+
+      const newRef = scopeThreadRef(input.sourceThreadRef.environmentId, newId);
+      await router.navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(newRef),
+      });
+      return newRef;
+    },
+    [resolveThreadTarget, router],
+  );
+
   return {
     archiveThread,
     unarchiveThread,
     deleteThread,
     confirmAndDeleteThread,
+    forkThread,
   };
 }

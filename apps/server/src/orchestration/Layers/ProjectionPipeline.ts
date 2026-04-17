@@ -580,8 +580,45 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             pendingUserInputCount: 0,
             hasActionableProposedPlan: 0,
             deletedAt: null,
+            forkedFromThreadId: null,
+            forkedFromTurnId: null,
           });
           return;
+
+        case "thread.forked": {
+          const ancestorMessages = event.payload.messagesSnapshot;
+          const latestUserMessageAt =
+            [...ancestorMessages]
+              .filter((message) => message.role === "user")
+              .toSorted(
+                (left, right) =>
+                  left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+              )
+              .at(-1)?.createdAt ?? null;
+          yield* projectionThreadRepository.upsert({
+            threadId: event.payload.threadId,
+            projectId: event.payload.projectId,
+            title: event.payload.title,
+            modelSelection: event.payload.modelSelection,
+            runtimeMode: event.payload.runtimeMode,
+            interactionMode: event.payload.interactionMode,
+            branch: null,
+            worktreePath: null,
+            latestTurnId: null,
+            createdAt: event.payload.createdAt,
+            updatedAt: event.payload.updatedAt,
+            archivedAt: null,
+            latestUserMessageAt,
+            pendingApprovalCount: 0,
+            pendingUserInputCount: 0,
+            hasActionableProposedPlan: 0,
+            deletedAt: null,
+            forkedFromThreadId: event.payload.forkedFromThreadId,
+            forkedFromTurnId: event.payload.forkedFromTurnId,
+          });
+          yield* refreshThreadShellSummary(event.payload.threadId);
+          return;
+        }
 
         case "thread.archived": {
           const existingRow = yield* projectionThreadRepository.getById({
@@ -757,6 +794,25 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       "applyThreadMessagesProjection",
     )(function* (event, attachmentSideEffects) {
       switch (event.type) {
+        case "thread.forked": {
+          for (const message of event.payload.messagesSnapshot) {
+            yield* projectionThreadMessageRepository.upsert({
+              messageId: message.id,
+              threadId: event.payload.threadId,
+              turnId: message.turnId,
+              role: message.role,
+              text: message.text,
+              ...(message.attachments !== undefined
+                ? { attachments: [...message.attachments] }
+                : {}),
+              isStreaming: false,
+              createdAt: message.createdAt,
+              updatedAt: message.updatedAt,
+            });
+          }
+          return;
+        }
+
         case "thread.message-sent": {
           const existingMessage = yield* projectionThreadMessageRepository.getByMessageId({
             messageId: event.payload.messageId,

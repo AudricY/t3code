@@ -44,7 +44,9 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           pending_approval_count,
           pending_user_input_count,
           has_actionable_proposed_plan,
-          deleted_at
+          deleted_at,
+          forked_from_thread_id,
+          forked_from_turn_id
         )
         VALUES (
           ${row.threadId},
@@ -63,7 +65,9 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.pendingApprovalCount},
           ${row.pendingUserInputCount},
           ${row.hasActionableProposedPlan},
-          ${row.deletedAt}
+          ${row.deletedAt},
+          ${row.forkedFromThreadId},
+          ${row.forkedFromTurnId}
         )
         ON CONFLICT (thread_id)
         DO UPDATE SET
@@ -82,7 +86,9 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           pending_approval_count = excluded.pending_approval_count,
           pending_user_input_count = excluded.pending_user_input_count,
           has_actionable_proposed_plan = excluded.has_actionable_proposed_plan,
-          deleted_at = excluded.deleted_at
+          deleted_at = excluded.deleted_at,
+          forked_from_thread_id = excluded.forked_from_thread_id,
+          forked_from_turn_id = excluded.forked_from_turn_id
       `,
   });
 
@@ -108,7 +114,9 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
           has_actionable_proposed_plan AS "hasActionableProposedPlan",
-          deleted_at AS "deletedAt"
+          deleted_at AS "deletedAt",
+          forked_from_thread_id AS "forkedFromThreadId",
+          forked_from_turn_id AS "forkedFromTurnId"
         FROM projection_threads
         WHERE thread_id = ${threadId}
       `,
@@ -136,7 +144,9 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
           has_actionable_proposed_plan AS "hasActionableProposedPlan",
-          deleted_at AS "deletedAt"
+          deleted_at AS "deletedAt",
+          forked_from_thread_id AS "forkedFromThreadId",
+          forked_from_turn_id AS "forkedFromTurnId"
         FROM projection_threads
         WHERE project_id = ${projectId}
         ORDER BY created_at ASC, thread_id ASC

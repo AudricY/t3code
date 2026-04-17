@@ -912,4 +912,65 @@ describe("orchestration projector", () => {
     expect(thread?.checkpoints[0]?.turnId).toBe("turn-100");
     expect(thread?.checkpoints.at(-1)?.turnId).toBe("turn-599");
   });
+
+  it("applies thread.forked events with snapshot and lineage", async () => {
+    const now = "2026-04-17T00:00:00.000Z";
+    const next = await Effect.runPromise(
+      projectEvent(
+        createEmptyReadModel(now),
+        makeEvent({
+          sequence: 1,
+          type: "thread.forked",
+          aggregateKind: "thread",
+          aggregateId: "thread-fork-target",
+          occurredAt: now,
+          commandId: "cmd-fork",
+          payload: {
+            threadId: "thread-fork-target",
+            projectId: "project-1",
+            title: "Fork",
+            modelSelection: { provider: "codex", model: "gpt-5" },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            forkedFromThreadId: "thread-source",
+            forkedFromTurnId: "turn-1",
+            messagesSnapshot: [
+              {
+                id: "msg-fork-user",
+                role: "user",
+                text: "hello",
+                turnId: null,
+                streaming: false,
+                createdAt: now,
+                updatedAt: now,
+              },
+              {
+                id: "msg-fork-assistant",
+                role: "assistant",
+                text: "hi",
+                turnId: "turn-1",
+                streaming: false,
+                createdAt: now,
+                updatedAt: now,
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+
+    const thread = next.threads[0];
+    expect(thread?.id).toBe("thread-fork-target");
+    expect(thread?.forkedFromThreadId).toBe("thread-source");
+    expect(thread?.forkedFromTurnId).toBe("turn-1");
+    expect(thread?.messages.map((message) => message.id)).toEqual([
+      "msg-fork-user",
+      "msg-fork-assistant",
+    ]);
+    expect(thread?.session).toBeNull();
+    expect(thread?.checkpoints).toHaveLength(0);
+    expect(thread?.activities).toHaveLength(0);
+  });
 });

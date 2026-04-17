@@ -533,3 +533,99 @@ it.effect("preserves proposed plan implementation metadata when present", () =>
     assert.strictEqual(parsed.implementationThreadId, "thread-2");
   }),
 );
+
+it.effect("decodes thread.fork command with explicit overrides", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.fork",
+      commandId: "cmd-fork-1",
+      threadId: "thread-fork-target",
+      sourceThreadId: "thread-source",
+      sourceTurnId: "turn-3",
+      title: "Fork of Original",
+      modelSelection: { provider: "codex", model: "gpt-5" },
+      runtimeMode: "approval-required",
+      interactionMode: "plan",
+      createdAt: "2026-04-17T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.fork");
+    if (parsed.type !== "thread.fork") return;
+    assert.strictEqual(parsed.threadId, "thread-fork-target");
+    assert.strictEqual(parsed.sourceThreadId, "thread-source");
+    assert.strictEqual(parsed.sourceTurnId, "turn-3");
+    assert.strictEqual(parsed.runtimeMode, "approval-required");
+  }),
+);
+
+it.effect("decodes thread.fork command without optional overrides", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.fork",
+      commandId: "cmd-fork-2",
+      threadId: "thread-fork-target-2",
+      sourceThreadId: "thread-source",
+      sourceTurnId: "turn-3",
+      title: "Fork",
+      createdAt: "2026-04-17T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.fork");
+    if (parsed.type !== "thread.fork") return;
+    assert.strictEqual(parsed.modelSelection, undefined);
+    assert.strictEqual(parsed.runtimeMode, undefined);
+    assert.strictEqual(parsed.interactionMode, undefined);
+  }),
+);
+
+it.effect("decodes thread.forked event payload", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationEvent({
+      sequence: 1,
+      eventId: "event-fork-1",
+      aggregateKind: "thread",
+      aggregateId: "thread-fork-target",
+      type: "thread.forked",
+      occurredAt: "2026-04-17T00:00:00.000Z",
+      commandId: "cmd-fork-1",
+      causationEventId: null,
+      correlationId: "cmd-fork-1",
+      metadata: {},
+      payload: {
+        threadId: "thread-fork-target",
+        projectId: "project-1",
+        title: "Fork of Original",
+        modelSelection: { provider: "codex", model: "gpt-5" },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        forkedFromThreadId: "thread-source",
+        forkedFromTurnId: "turn-3",
+        messagesSnapshot: [
+          {
+            id: "msg-fork-1",
+            role: "user",
+            text: "hello",
+            turnId: null,
+            streaming: false,
+            createdAt: "2026-04-17T00:00:00.000Z",
+            updatedAt: "2026-04-17T00:00:00.000Z",
+          },
+          {
+            id: "msg-fork-2",
+            role: "assistant",
+            text: "hi",
+            turnId: "turn-3",
+            streaming: false,
+            createdAt: "2026-04-17T00:00:01.000Z",
+            updatedAt: "2026-04-17T00:00:01.000Z",
+          },
+        ],
+        createdAt: "2026-04-17T00:00:00.000Z",
+        updatedAt: "2026-04-17T00:00:00.000Z",
+      },
+    });
+    assert.strictEqual(parsed.type, "thread.forked");
+    if (parsed.type !== "thread.forked") return;
+    assert.strictEqual(parsed.payload.forkedFromThreadId, "thread-source");
+    assert.strictEqual(parsed.payload.forkedFromTurnId, "turn-3");
+    assert.strictEqual(parsed.payload.messagesSnapshot.length, 2);
+  }),
+);

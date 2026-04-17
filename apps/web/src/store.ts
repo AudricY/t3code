@@ -245,6 +245,10 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     pendingSourceProposedPlan: thread.latestTurn?.sourceProposedPlan,
     branch: thread.branch,
     worktreePath: thread.worktreePath,
+    ...(thread.forkedFromThreadId !== undefined
+      ? { forkedFromThreadId: thread.forkedFromThreadId }
+      : {}),
+    ...(thread.forkedFromTurnId !== undefined ? { forkedFromTurnId: thread.forkedFromTurnId } : {}),
     turnDiffSummaries: thread.checkpoints.map(mapTurnDiffSummary),
     activities: thread.activities.map((activity) => ({ ...activity })),
   };
@@ -1263,6 +1267,36 @@ function applyEnvironmentOrchestrationEvent(
           activities: [],
           checkpoints: [],
           session: null,
+        },
+        environmentId,
+      );
+      return writeThreadState(state, nextThread, previousThread);
+    }
+
+    case "thread.forked": {
+      const previousThread = getThreadFromEnvironmentState(state, event.payload.threadId);
+      const nextThread = mapThread(
+        {
+          id: event.payload.threadId,
+          projectId: event.payload.projectId,
+          title: event.payload.title,
+          modelSelection: event.payload.modelSelection,
+          runtimeMode: event.payload.runtimeMode,
+          interactionMode: event.payload.interactionMode,
+          branch: null,
+          worktreePath: null,
+          latestTurn: null,
+          createdAt: event.payload.createdAt,
+          updatedAt: event.payload.updatedAt,
+          archivedAt: null,
+          deletedAt: null,
+          messages: event.payload.messagesSnapshot,
+          proposedPlans: [],
+          activities: [],
+          checkpoints: [],
+          session: null,
+          forkedFromThreadId: event.payload.forkedFromThreadId,
+          forkedFromTurnId: event.payload.forkedFromTurnId,
         },
         environmentId,
       );

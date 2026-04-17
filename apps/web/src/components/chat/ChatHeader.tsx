@@ -23,6 +23,7 @@ interface ChatHeaderProps {
   draftId?: DraftId;
   activeThreadTitle: string;
   activeProjectName: string | undefined;
+  forkedFromThreadId?: ThreadId;
   isGitRepo: boolean;
   openInCwd: string | null;
   activeProjectScripts: ProjectScript[] | undefined;
@@ -49,6 +50,7 @@ export const ChatHeader = memo(function ChatHeader({
   draftId,
   activeThreadTitle,
   activeProjectName,
+  forkedFromThreadId,
   isGitRepo,
   openInCwd,
   activeProjectScripts,
@@ -86,6 +88,11 @@ export const ChatHeader = memo(function ChatHeader({
         {activeProjectName && !isGitRepo && (
           <Badge variant="outline" className="shrink-0 text-[10px] text-amber-700">
             No Git
+          </Badge>
+        )}
+        {forkedFromThreadId && (
+          <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
+            Forked
           </Badge>
         )}
       </div>

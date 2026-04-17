@@ -17,6 +17,7 @@ import {
   ThreadArchivedPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
+  ThreadForkedPayload,
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
@@ -268,6 +269,54 @@ export function projectEvent(
             activities: [],
             checkpoints: [],
             session: null,
+          },
+          event.type,
+          "thread",
+        );
+        const existing = nextBase.threads.find((entry) => entry.id === thread.id);
+        return {
+          ...nextBase,
+          threads: existing
+            ? nextBase.threads.map((entry) => (entry.id === thread.id ? thread : entry))
+            : [...nextBase.threads, thread],
+        };
+      });
+
+    case "thread.forked":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadForkedPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        const messages: ReadonlyArray<OrchestrationMessage> = yield* Effect.forEach(
+          payload.messagesSnapshot,
+          (entry) => decodeForEvent(OrchestrationMessage, entry, event.type, "messagesSnapshot"),
+        );
+        const cappedMessages = messages.slice(-MAX_THREAD_MESSAGES);
+        const thread: OrchestrationThread = yield* decodeForEvent(
+          OrchestrationThread,
+          {
+            id: payload.threadId,
+            projectId: payload.projectId,
+            title: payload.title,
+            modelSelection: payload.modelSelection,
+            runtimeMode: payload.runtimeMode,
+            interactionMode: payload.interactionMode,
+            branch: null,
+            worktreePath: null,
+            latestTurn: null,
+            createdAt: payload.createdAt,
+            updatedAt: payload.updatedAt,
+            archivedAt: null,
+            deletedAt: null,
+            messages: cappedMessages,
+            activities: [],
+            checkpoints: [],
+            session: null,
+            forkedFromThreadId: payload.forkedFromThreadId,
+            forkedFromTurnId: payload.forkedFromTurnId,
           },
           event.type,
           "thread",

@@ -1,7 +1,11 @@
-import type {
-  OrchestrationCommand,
-  OrchestrationEvent,
-  OrchestrationReadModel,
+import {
+  MessageId,
+  type OrchestrationCommand,
+  type OrchestrationEvent,
+  type OrchestrationMessage,
+  type OrchestrationReadModel,
+  type OrchestrationThread,
+  type TurnId,
 } from "@t3tools/contracts";
 import { Effect } from "effect";
 
@@ -14,6 +18,35 @@ import {
   requireThreadAbsent,
   requireThreadNotArchived,
 } from "./commandInvariants.ts";
+
+function selectForkAncestorMessages(
+  thread: OrchestrationThread,
+  sourceTurnId: TurnId,
+): ReadonlyArray<OrchestrationMessage> | null {
+  const sourceCheckpoint = thread.checkpoints.find((entry) => entry.turnId === sourceTurnId);
+  if (!sourceCheckpoint) {
+    return null;
+  }
+  const ancestorTurnIds = new Set(
+    thread.checkpoints
+      .filter((entry) => entry.checkpointTurnCount <= sourceCheckpoint.checkpointTurnCount)
+      .map((entry) => entry.turnId),
+  );
+  const latestAncestorAssistant = thread.messages
+    .filter((message) => message.turnId !== null && ancestorTurnIds.has(message.turnId))
+    .toSorted(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+    )
+    .at(-1);
+  const cutoffAt = latestAncestorAssistant?.createdAt ?? sourceCheckpoint.completedAt;
+  return thread.messages
+    .filter((message) => message.createdAt <= cutoffAt)
+    .toSorted(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+    );
+}
 
 const nowIso = () => new Date().toISOString();
 const defaultMetadata: Omit<OrchestrationEvent, "sequence" | "type" | "payload"> = {
@@ -673,6 +706,84 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           activity: command.activity,
+        },
+      };
+    }
+
+    case "thread.fork": {
+      const sourceThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.sourceThreadId,
+      });
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: sourceThread.projectId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+
+      const activeTurnId = sourceThread.session?.activeTurnId ?? null;
+      if (
+        sourceThread.session?.status === "running" &&
+        activeTurnId !== null &&
+        activeTurnId === command.sourceTurnId
+      ) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Cannot fork thread '${command.sourceThreadId}' from in-flight turn '${command.sourceTurnId}'.`,
+        });
+      }
+
+      const ancestorMessages = selectForkAncestorMessages(sourceThread, command.sourceTurnId);
+      if (ancestorMessages === null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Source turn '${command.sourceTurnId}' not found in thread '${command.sourceThreadId}'.`,
+        });
+      }
+
+      const messagesSnapshot: ReadonlyArray<OrchestrationMessage> = ancestorMessages.map(
+        (message) => {
+          const base = {
+            id: MessageId.make(crypto.randomUUID()),
+            role: message.role,
+            text: message.text,
+            turnId: message.turnId,
+            streaming: false,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt,
+          } satisfies OrchestrationMessage;
+          return message.attachments === undefined
+            ? base
+            : Object.assign({}, base, { attachments: message.attachments });
+        },
+      );
+
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.forked",
+        payload: {
+          threadId: command.threadId,
+          projectId: sourceThread.projectId,
+          title: command.title,
+          modelSelection: command.modelSelection ?? sourceThread.modelSelection,
+          runtimeMode: command.runtimeMode ?? sourceThread.runtimeMode,
+          interactionMode: command.interactionMode ?? sourceThread.interactionMode,
+          forkedFromThreadId: command.sourceThreadId,
+          forkedFromTurnId: command.sourceTurnId,
+          messagesSnapshot,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
         },
       };
     }

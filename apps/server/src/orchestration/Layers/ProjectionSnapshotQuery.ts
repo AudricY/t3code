@@ -928,6 +928,10 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
                 session: sessionsByThread.get(row.threadId) ?? null,
+                ...(row.forkedFromThreadId != null
+                  ? { forkedFromThreadId: row.forkedFromThreadId }
+                  : {}),
+                ...(row.forkedFromTurnId != null ? { forkedFromTurnId: row.forkedFromTurnId } : {}),
               }));
 
               const snapshot = {
@@ -1069,6 +1073,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                     hasPendingApprovals: row.pendingApprovalCount > 0,
                     hasPendingUserInput: row.pendingUserInputCount > 0,
                     hasActionableProposedPlan: row.hasActionableProposedPlan > 0,
+                    ...(row.forkedFromThreadId != null
+                      ? { forkedFromThreadId: row.forkedFromThreadId }
+                      : {}),
+                    ...(row.forkedFromTurnId != null
+                      ? { forkedFromTurnId: row.forkedFromTurnId }
+                      : {}),
                   }),
                 ),
               updatedAt: updatedAt ?? new Date(0).toISOString(),
@@ -1265,6 +1275,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         hasPendingApprovals: threadRow.value.pendingApprovalCount > 0,
         hasPendingUserInput: threadRow.value.pendingUserInputCount > 0,
         hasActionableProposedPlan: threadRow.value.hasActionableProposedPlan > 0,
+        ...(threadRow.value.forkedFromThreadId != null
+          ? { forkedFromThreadId: threadRow.value.forkedFromThreadId }
+          : {}),
+        ...(threadRow.value.forkedFromTurnId != null
+          ? { forkedFromTurnId: threadRow.value.forkedFromTurnId }
+          : {}),
       } satisfies OrchestrationThreadShell);
     });
 
@@ -1404,6 +1420,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           completedAt: row.completedAt,
         })),
         session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
+        ...(threadRow.value.forkedFromThreadId != null
+          ? { forkedFromThreadId: threadRow.value.forkedFromThreadId }
+          : {}),
+        ...(threadRow.value.forkedFromTurnId != null
+          ? { forkedFromTurnId: threadRow.value.forkedFromTurnId }
+          : {}),
       };
 
       return Option.some(
