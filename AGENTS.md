@@ -11,6 +11,14 @@ T3 Code is a minimal web GUI for using coding agents like Codex and Claude.
 
 This repository is a VERY EARLY WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 
+## Fork Maintenance
+
+Personal fork of `pingdotgg/t3code`. `origin` = fork, `upstream` = pingdotgg (fetch-only).
+
+**Web-only.** `apps/desktop` and `apps/marketing` are removed and must not be reintroduced. No Electron, auto-update, IPC/preload, native packaging, or desktop-only branches in server code. Running model is `bun start` (optionally a PWA).
+
+When merging from `upstream/main`, drop desktop/marketing changes; keep server, web, and packages.
+
 ## Core Priorities
 
 1. Performance first.
