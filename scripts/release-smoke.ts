@@ -80,7 +80,7 @@ releaseDate: '2026-03-08T10:36:07.540Z'
 
 function writeWindowsManifestFixtures(
   targetRoot: string,
-  channel: "latest" | "nightly",
+  channel: string,
 ): { arm64Path: string; x64Path: string } {
   const assetDirectory = resolve(targetRoot, "release-assets");
   mkdirSync(assetDirectory, { recursive: true });
@@ -264,6 +264,9 @@ try {
   const { arm64Path: nightlyWinArm64Path, x64Path: nightlyWinX64Path } =
     writeWindowsManifestFixtures(tempRoot, "nightly");
   const mergedNightlyWindowsManifestPath = resolve(tempRoot, "release-assets/nightly.yml");
+  const { arm64Path: previewWinArm64Path, x64Path: previewWinX64Path } =
+    writeWindowsManifestFixtures(tempRoot, "preview");
+  const mergedPreviewWindowsManifestPath = resolve(tempRoot, "release-assets/preview.yml");
   const { arm64Path: winDebugArm64Path, x64Path: winDebugX64Path } =
     writeWindowsBuilderDebugFixtures(tempRoot);
   execFileSync(
@@ -274,7 +277,11 @@ try {
         release_assets_dir=${JSON.stringify(resolve(tempRoot, "release-assets"))}
         shopt -s nullglob
         found_windows_manifest=false
-        for x64_manifest in "$release_assets_dir"/latest*-win-x64.yml "$release_assets_dir"/nightly*-win-x64.yml; do
+        for x64_manifest in "$release_assets_dir"/*-win-x64.yml; do
+          if [[ "$(basename "$x64_manifest")" == builder-debug-* ]]; then
+            continue
+          fi
+
           arm64_manifest="\${x64_manifest/-x64.yml/-arm64.yml}"
           output_manifest="\${x64_manifest/-win-x64.yml/.yml}"
           if [[ ! -f "$arm64_manifest" ]]; then
@@ -324,6 +331,17 @@ try {
     "T3-Code-9.9.9-smoke.0-x64.exe",
     "Merged nightly Windows manifest is missing the x64 asset.",
   );
+  const mergedPreviewWindowsManifest = readFileSync(mergedPreviewWindowsManifestPath, "utf8");
+  assertContains(
+    mergedPreviewWindowsManifest,
+    "T3-Code-9.9.9-smoke.0-arm64.exe",
+    "Merged preview Windows manifest is missing the arm64 asset.",
+  );
+  assertContains(
+    mergedPreviewWindowsManifest,
+    "T3-Code-9.9.9-smoke.0-x64.exe",
+    "Merged preview Windows manifest is missing the x64 asset.",
+  );
   assertMissing(
     winArm64Path,
     "Windows release smoke unexpectedly kept the arm64 updater manifest.",
@@ -336,6 +354,14 @@ try {
   assertMissing(
     nightlyWinX64Path,
     "Windows release smoke unexpectedly kept the nightly x64 updater manifest.",
+  );
+  assertMissing(
+    previewWinArm64Path,
+    "Windows release smoke unexpectedly kept the preview arm64 updater manifest.",
+  );
+  assertMissing(
+    previewWinX64Path,
+    "Windows release smoke unexpectedly kept the preview x64 updater manifest.",
   );
   assertExists(
     winDebugArm64Path,
