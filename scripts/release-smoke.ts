@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,8 +120,42 @@ releaseDate: '2026-03-08T10:36:07.540Z'
   return { arm64Path, x64Path };
 }
 
+function writeWindowsBuilderDebugFixtures(targetRoot: string): {
+  arm64Path: string;
+  x64Path: string;
+} {
+  const assetDirectory = resolve(targetRoot, "release-assets");
+  mkdirSync(assetDirectory, { recursive: true });
+
+  const arm64Path = resolve(assetDirectory, "builder-debug-win-arm64.yml");
+  const x64Path = resolve(assetDirectory, "builder-debug-win-x64.yml");
+  const debugFixture = `arm64:
+  firstOrDefaultFilePatterns:
+    - '**/*'
+nsis:
+  script: |-
+    !include "example.nsh"
+`;
+
+  writeFileSync(arm64Path, debugFixture);
+  writeFileSync(x64Path, debugFixture);
+
+  return { arm64Path, x64Path };
+}
 function assertContains(haystack: string, needle: string, message: string): void {
   if (!haystack.includes(needle)) {
+    throw new Error(message);
+  }
+}
+
+function assertExists(path: string, message: string): void {
+  if (!existsSync(path)) {
+    throw new Error(message);
+  }
+}
+
+function assertMissing(path: string, message: string): void {
+  if (existsSync(path)) {
     throw new Error(message);
   }
 }
@@ -212,14 +254,38 @@ try {
   );
 
   const { arm64Path: winArm64Path, x64Path: winX64Path } = writeWindowsManifestFixtures(tempRoot);
+  const mergedWindowsManifestPath = resolve(tempRoot, "release-assets/latest.yml");
+  const { arm64Path: winDebugArm64Path, x64Path: winDebugX64Path } =
+    writeWindowsBuilderDebugFixtures(tempRoot);
   execFileSync(
-    process.execPath,
+    "bash",
     [
-      resolve(repoRoot, "scripts/merge-update-manifests.ts"),
-      "--platform",
-      "win",
-      winArm64Path,
-      winX64Path,
+      "-lc",
+      `
+        release_assets_dir=${JSON.stringify(resolve(tempRoot, "release-assets"))}
+        shopt -s nullglob
+        found_windows_manifest=false
+        for x64_manifest in "$release_assets_dir"/latest*-win-x64.yml; do
+          arm64_manifest="\${x64_manifest/-x64.yml/-arm64.yml}"
+          output_manifest="\${x64_manifest/-win-x64.yml/.yml}"
+          if [[ ! -f "$arm64_manifest" ]]; then
+            echo "Missing matching arm64 Windows manifest for $x64_manifest" >&2
+            exit 1
+          fi
+
+          found_windows_manifest=true
+          node ${JSON.stringify(resolve(repoRoot, "scripts/merge-update-manifests.ts"))} --platform win \
+            "$arm64_manifest" \
+            "$x64_manifest" \
+            "$output_manifest"
+          rm -f "$arm64_manifest" "$x64_manifest"
+        done
+
+        if [[ "$found_windows_manifest" != true ]]; then
+          echo "No Windows updater manifests found to merge." >&2
+          exit 1
+        fi
+      `,
     ],
     {
       cwd: repoRoot,
@@ -227,7 +293,7 @@ try {
     },
   );
 
-  const mergedWindowsManifest = readFileSync(winArm64Path, "utf8");
+  const mergedWindowsManifest = readFileSync(mergedWindowsManifestPath, "utf8");
   assertContains(
     mergedWindowsManifest,
     "T3-Code-9.9.9-smoke.0-arm64.exe",
@@ -237,6 +303,19 @@ try {
     mergedWindowsManifest,
     "T3-Code-9.9.9-smoke.0-x64.exe",
     "Merged Windows manifest is missing the x64 asset.",
+  );
+  assertMissing(
+    winArm64Path,
+    "Windows release smoke unexpectedly kept the arm64 updater manifest.",
+  );
+  assertMissing(winX64Path, "Windows release smoke unexpectedly kept the x64 updater manifest.");
+  assertExists(
+    winDebugArm64Path,
+    "Windows release smoke unexpectedly removed the arm64 builder debug fixture.",
+  );
+  assertExists(
+    winDebugX64Path,
+    "Windows release smoke unexpectedly removed the x64 builder debug fixture.",
   );
 
   console.log("Release smoke checks passed.");
