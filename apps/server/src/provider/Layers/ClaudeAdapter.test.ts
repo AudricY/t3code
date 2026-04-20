@@ -2565,7 +2565,7 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
-  it.effect("passes Claude resume ids without pinning a stale assistant checkpoint", () => {
+  it.effect("passes Claude resume ids with the assistant checkpoint for fork resume", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
@@ -2593,7 +2593,7 @@ describe("ClaudeAdapterLive", () => {
       const createInput = harness.getLastCreateQueryInput();
       assert.equal(createInput?.options.resume, "550e8400-e29b-41d4-a716-446655440000");
       assert.equal(createInput?.options.sessionId, undefined);
-      assert.equal(createInput?.options.resumeSessionAt, undefined);
+      assert.equal(createInput?.options.resumeSessionAt, "assistant-99");
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
