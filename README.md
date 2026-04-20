@@ -35,6 +35,8 @@ mise install
 bun install .
 ```
 
+To use this checkout as your everyday `t3`, build it and `bun link` the `apps/server` package so the global `t3` command resolves here instead of the published npm version.
+
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or PR.
 
 Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
