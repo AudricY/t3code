@@ -20,6 +20,7 @@ import {
   CheckIcon,
   CircleAlertIcon,
   EyeIcon,
+  GitBranchIcon,
   GlobeIcon,
   HammerIcon,
   type LucideIcon,
@@ -84,6 +85,7 @@ interface TimelineRowSharedState {
   onRevertUserMessage: (messageId: MessageId) => void;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
+  onForkFromTurn: (turnId: TurnId) => void;
 }
 
 const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
@@ -106,6 +108,7 @@ interface MessagesTimelineProps {
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onRevertUserMessage: (messageId: MessageId) => void;
+  onForkFromTurn: (turnId: TurnId) => void;
   isRevertingCheckpoint: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
@@ -134,6 +137,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   onOpenTurnDiff,
   revertTurnCountByUserMessageId,
   onRevertUserMessage,
+  onForkFromTurn,
   isRevertingCheckpoint,
   onImageExpand,
   activeThreadEnvironmentId,
@@ -207,6 +211,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
+      onForkFromTurn,
     }),
     [
       activeTurnInProgress,
@@ -223,6 +228,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
+      onForkFromTurn,
     ],
   );
 
@@ -366,6 +372,20 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                         <Undo2Icon className="size-3" />
                       </Button>
                     )}
+                    {row.message.turnId && (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          if (row.message.turnId) ctx.onForkFromTurn(row.message.turnId);
+                        }}
+                        title="Fork from here"
+                        aria-label="Fork from here"
+                      >
+                        <GitBranchIcon className="size-3" />
+                      </Button>
+                    )}
                   </div>
                   <p className="text-right text-xs text-muted-foreground/50">
                     {formatTimestamp(row.message.createdAt, ctx.timestampFormat)}
@@ -430,13 +450,28 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                     )}
                   </p>
                   {assistantCopyState.visible ? (
-                    <div className="flex items-center opacity-0 transition-opacity duration-200  group-hover/assistant:opacity-100">
+                    <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200  group-hover/assistant:opacity-100">
                       <MessageCopyButton
                         text={assistantCopyState.text ?? ""}
                         size="icon-xs"
                         variant="outline"
                         className="border-border/50 bg-background/35 text-muted-foreground/45 shadow-none hover:border-border/70 hover:bg-background/55 hover:text-muted-foreground/70"
                       />
+                      {!assistantTurnStillInProgress && row.message.turnId && (
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="outline"
+                          onClick={() => {
+                            if (row.message.turnId) ctx.onForkFromTurn(row.message.turnId);
+                          }}
+                          title="Fork from here"
+                          aria-label="Fork from here"
+                          className="border-border/50 bg-background/35 text-muted-foreground/45 shadow-none hover:border-border/70 hover:bg-background/55 hover:text-muted-foreground/70"
+                        >
+                          <GitBranchIcon className="size-3" />
+                        </Button>
+                      )}
                     </div>
                   ) : null}
                 </div>
