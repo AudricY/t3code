@@ -28,6 +28,7 @@ import {
   ProjectionTurnRepository,
 } from "../../persistence/Services/ProjectionTurns.ts";
 import { ProjectionThreadRepository } from "../../persistence/Services/ProjectionThreads.ts";
+import { ProviderSessionRuntimeRepository } from "../../persistence/Services/ProviderSessionRuntime.ts";
 import { ProjectionPendingApprovalRepositoryLive } from "../../persistence/Layers/ProjectionPendingApprovals.ts";
 import { ProjectionProjectRepositoryLive } from "../../persistence/Layers/ProjectionProjects.ts";
 import { ProjectionStateRepositoryLive } from "../../persistence/Layers/ProjectionState.ts";
@@ -37,6 +38,7 @@ import { ProjectionThreadProposedPlanRepositoryLive } from "../../persistence/La
 import { ProjectionThreadSessionRepositoryLive } from "../../persistence/Layers/ProjectionThreadSessions.ts";
 import { ProjectionTurnRepositoryLive } from "../../persistence/Layers/ProjectionTurns.ts";
 import { ProjectionThreadRepositoryLive } from "../../persistence/Layers/ProjectionThreads.ts";
+import { ProviderSessionRuntimeRepositoryLive } from "../../persistence/Layers/ProviderSessionRuntime.ts";
 import { ServerConfig } from "../../config.ts";
 import {
   OrchestrationProjectionPipeline,
@@ -450,6 +452,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const projectionThreadActivityRepository = yield* ProjectionThreadActivityRepository;
     const projectionThreadSessionRepository = yield* ProjectionThreadSessionRepository;
     const projectionTurnRepository = yield* ProjectionTurnRepository;
+    const providerSessionRuntimeRepository = yield* ProviderSessionRuntimeRepository;
     const projectionPendingApprovalRepository = yield* ProjectionPendingApprovalRepository;
 
     const fileSystem = yield* FileSystem.FileSystem;
@@ -616,6 +619,20 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             forkedFromThreadId: event.payload.forkedFromThreadId,
             forkedFromTurnId: event.payload.forkedFromTurnId,
           });
+          if (event.payload.sourceResumeCursor !== undefined) {
+            yield* providerSessionRuntimeRepository
+              .upsert({
+                threadId: event.payload.threadId,
+                providerName: event.payload.modelSelection.provider,
+                adapterKey: event.payload.modelSelection.provider,
+                runtimeMode: event.payload.runtimeMode,
+                status: "stopped",
+                lastSeenAt: event.payload.createdAt,
+                resumeCursor: event.payload.sourceResumeCursor,
+                runtimePayload: null,
+              })
+              .pipe(Effect.catch(() => Effect.void));
+          }
           yield* refreshThreadShellSummary(event.payload.threadId);
           return;
         }
@@ -1094,6 +1111,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
               checkpointRef: null,
               checkpointStatus: null,
               checkpointFiles: [],
+              resumeCursor: null,
             });
           }
 
@@ -1111,6 +1129,17 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             threadId: event.payload.threadId,
             turnId: event.payload.turnId,
           });
+          const isTurnComplete = !event.payload.streaming;
+          const sessionCursor: unknown = isTurnComplete
+            ? yield* providerSessionRuntimeRepository
+                .getByThreadId({ threadId: event.payload.threadId })
+                .pipe(
+                  Effect.map((runtime) =>
+                    Option.isSome(runtime) ? (runtime.value.resumeCursor ?? null) : null,
+                  ),
+                  Effect.catch(() => Effect.succeed(null)),
+                )
+            : null;
           if (Option.isSome(existingTurn)) {
             yield* projectionTurnRepository.upsertByTurnId({
               ...existingTurn.value,
@@ -1127,6 +1156,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
                 : (existingTurn.value.completedAt ?? event.payload.updatedAt),
               startedAt: existingTurn.value.startedAt ?? event.payload.createdAt,
               requestedAt: existingTurn.value.requestedAt ?? event.payload.createdAt,
+              resumeCursor: sessionCursor ?? existingTurn.value.resumeCursor,
             });
             return;
           }
@@ -1145,6 +1175,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             checkpointRef: null,
             checkpointStatus: null,
             checkpointFiles: [],
+            resumeCursor: sessionCursor,
           });
           return;
         }
@@ -1182,6 +1213,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             checkpointRef: null,
             checkpointStatus: null,
             checkpointFiles: [],
+            resumeCursor: null,
           });
           return;
         }
@@ -1228,6 +1260,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             checkpointRef: event.payload.checkpointRef,
             checkpointStatus: event.payload.status,
             checkpointFiles: event.payload.files,
+            resumeCursor: null,
           });
           return;
         }
@@ -1530,4 +1563,5 @@ export const OrchestrationProjectionPipelineLive = Layer.effect(
   Layer.provideMerge(ProjectionTurnRepositoryLive),
   Layer.provideMerge(ProjectionPendingApprovalRepositoryLive),
   Layer.provideMerge(ProjectionStateRepositoryLive),
+  Layer.provideMerge(ProviderSessionRuntimeRepositoryLive),
 );

@@ -228,6 +228,7 @@ describe("ProviderCommandReactor", () => {
       getCapabilities: (_provider) =>
         Effect.succeed({
           sessionModelSwitch: input?.sessionModelSwitch ?? "in-session",
+          supportsForkResume: false,
         }),
       rollbackConversation: () => unsupported(),
       get streamEvents() {

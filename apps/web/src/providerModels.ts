@@ -21,6 +21,19 @@ const EMPTY_CAPABILITIES: ModelCapabilities = {
   promptInjectedEffortLevels: [],
 };
 
+// Mirror of the server-side ProviderAdapterCapabilities.supportsForkResume flag.
+// Keep in sync with apps/server/src/provider/Layers/*Adapter.ts.
+const PROVIDER_SUPPORTS_FORK_RESUME: Record<ProviderKind, boolean> = {
+  codex: false,
+  claudeAgent: true,
+  cursor: false,
+  opencode: false,
+};
+
+export function providerSupportsForkResume(provider: ProviderKind): boolean {
+  return PROVIDER_SUPPORTS_FORK_RESUME[provider] ?? false;
+}
+
 export function getProviderModels(
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderKind,

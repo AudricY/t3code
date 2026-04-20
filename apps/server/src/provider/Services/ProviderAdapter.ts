@@ -30,6 +30,11 @@ export interface ProviderAdapterCapabilities {
    * Declares whether changing the model on an existing session is supported.
    */
   readonly sessionModelSwitch: ProviderSessionModelSwitchMode;
+  /**
+   * Declares whether this provider can resume a session at a specific prior
+   * turn's resume cursor (enables thread forking to preserve history).
+   */
+  readonly supportsForkResume: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {

@@ -88,6 +88,7 @@ import { useComposerDraftStore } from "../composerDraftStore";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { retainThreadDetailSubscription } from "../environments/runtime/service";
 
+import { providerSupportsForkResume } from "../providerModels";
 import { useThreadActions } from "../hooks/useThreadActions";
 import {
   buildThreadRouteParams,
@@ -1859,7 +1860,10 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         scopedProjectKey(scopeProjectRef(thread.environmentId, thread.projectId)),
       );
       const threadWorkspacePath = thread.worktreePath ?? threadProject?.cwd ?? project.cwd ?? null;
-      const canFork = thread.latestTurn?.turnId !== undefined;
+      const canFork =
+        thread.latestTurn?.turnId !== undefined &&
+        thread.session?.provider !== undefined &&
+        providerSupportsForkResume(thread.session.provider);
       const clicked = await api.contextMenu.show(
         [
           { id: "rename", label: "Rename thread" },

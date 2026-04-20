@@ -828,6 +828,11 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         },
       );
 
+      const sourceCheckpoint = sourceThread.checkpoints.find(
+        (entry) => entry.turnId === command.sourceTurnId,
+      );
+      const sourceResumeCursor = sourceCheckpoint?.resumeCursor;
+
       return {
         ...withEventBase({
           aggregateKind: "thread",
@@ -846,6 +851,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           forkedFromThreadId: command.sourceThreadId,
           forkedFromTurnId: command.sourceTurnId,
           messagesSnapshot,
+          ...(sourceResumeCursor !== undefined ? { sourceResumeCursor } : {}),
           createdAt: command.createdAt,
           updatedAt: command.createdAt,
         },

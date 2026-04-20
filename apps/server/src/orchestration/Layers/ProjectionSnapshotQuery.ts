@@ -81,6 +81,7 @@ const ProjectionThreadSessionDbRowSchema = ProjectionThreadSession;
 const ProjectionCheckpointDbRowSchema = ProjectionCheckpoint.mapFields(
   Struct.assign({
     files: Schema.fromJsonString(Schema.Array(OrchestrationCheckpointFile)),
+    resumeCursor: Schema.fromJsonString(Schema.NullOr(Schema.Unknown)),
   }),
 );
 const ProjectionLatestTurnDbRowSchema = Schema.Struct({
@@ -374,7 +375,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           checkpoint_status AS "status",
           checkpoint_files_json AS "files",
           assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
+          completed_at AS "completedAt",
+          COALESCE(resume_cursor_json, 'null') AS "resumeCursor"
         FROM projection_turns
         WHERE checkpoint_turn_count IS NOT NULL
         ORDER BY thread_id ASC, checkpoint_turn_count ASC
@@ -656,7 +658,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           checkpoint_status AS "status",
           checkpoint_files_json AS "files",
           assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
+          completed_at AS "completedAt",
+          COALESCE(resume_cursor_json, 'null') AS "resumeCursor"
         FROM projection_turns
         WHERE thread_id = ${threadId}
           AND checkpoint_turn_count IS NOT NULL
@@ -833,6 +836,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   files: row.files,
                   assistantMessageId: row.assistantMessageId,
                   completedAt: row.completedAt,
+                  ...(row.resumeCursor !== null ? { resumeCursor: row.resumeCursor } : {}),
                 });
                 checkpointsByThread.set(row.threadId, threadCheckpoints);
               }
@@ -1219,6 +1223,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             files: row.files,
             assistantMessageId: row.assistantMessageId,
             completedAt: row.completedAt,
+            ...(row.resumeCursor !== null ? { resumeCursor: row.resumeCursor } : {}),
           }),
         ),
       });
@@ -1418,6 +1423,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           files: row.files,
           assistantMessageId: row.assistantMessageId,
           completedAt: row.completedAt,
+          ...(row.resumeCursor !== null ? { resumeCursor: row.resumeCursor } : {}),
         })),
         session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
         ...(threadRow.value.forkedFromThreadId != null

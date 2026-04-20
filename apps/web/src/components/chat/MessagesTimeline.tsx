@@ -86,6 +86,7 @@ interface TimelineRowSharedState {
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
   onForkFromTurn: (turnId: TurnId) => void;
+  canForkFromTurn: boolean;
 }
 
 const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);
@@ -109,6 +110,7 @@ interface MessagesTimelineProps {
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onRevertUserMessage: (messageId: MessageId) => void;
   onForkFromTurn: (turnId: TurnId) => void;
+  canForkFromTurn: boolean;
   isRevertingCheckpoint: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   activeThreadEnvironmentId: EnvironmentId;
@@ -138,6 +140,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   revertTurnCountByUserMessageId,
   onRevertUserMessage,
   onForkFromTurn,
+  canForkFromTurn,
   isRevertingCheckpoint,
   onImageExpand,
   activeThreadEnvironmentId,
@@ -212,6 +215,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onImageExpand,
       onOpenTurnDiff,
       onForkFromTurn,
+      canForkFromTurn,
     }),
     [
       activeTurnInProgress,
@@ -229,6 +233,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onImageExpand,
       onOpenTurnDiff,
       onForkFromTurn,
+      canForkFromTurn,
     ],
   );
 
@@ -372,7 +377,7 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                         <Undo2Icon className="size-3" />
                       </Button>
                     )}
-                    {row.message.turnId && (
+                    {ctx.canForkFromTurn && row.message.turnId && (
                       <Button
                         type="button"
                         size="xs"
@@ -457,7 +462,7 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                         variant="outline"
                         className="border-border/50 bg-background/35 text-muted-foreground/45 shadow-none hover:border-border/70 hover:bg-background/55 hover:text-muted-foreground/70"
                       />
-                      {!assistantTurnStillInProgress && row.message.turnId && (
+                      {ctx.canForkFromTurn && !assistantTurnStillInProgress && row.message.turnId && (
                         <Button
                           type="button"
                           size="icon-xs"

@@ -111,7 +111,11 @@ import {
   projectScriptIdFromCommand,
 } from "~/projectScripts";
 import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils";
-import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
+import {
+  getProviderModelCapabilities,
+  providerSupportsForkResume,
+  resolveSelectableProvider,
+} from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelection } from "../modelSelection";
 import { isTerminalFocused } from "../lib/terminalFocus";
@@ -3214,6 +3218,9 @@ export default function ChatView(props: ChatViewProps) {
     },
     [activeThreadRef, forkThread],
   );
+  const canForkActiveThread = threadProvider
+    ? providerSupportsForkResume(threadProvider)
+    : false;
 
   // Empty state: no active thread
   if (!activeThread) {
@@ -3297,6 +3304,7 @@ export default function ChatView(props: ChatViewProps) {
               revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
               onRevertUserMessage={onRevertUserMessage}
               onForkFromTurn={onForkFromTurn}
+              canForkFromTurn={canForkActiveThread}
               isRevertingCheckpoint={isRevertingCheckpoint}
               onImageExpand={onExpandTimelineImage}
               markdownCwd={gitCwd ?? undefined}

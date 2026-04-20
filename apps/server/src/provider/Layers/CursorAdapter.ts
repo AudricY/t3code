@@ -1033,7 +1033,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
 
     return {
       provider: PROVIDER,
-      capabilities: { sessionModelSwitch: "in-session" },
+      capabilities: { sessionModelSwitch: "in-session", supportsForkResume: false },
       startSession,
       sendTurn,
       interruptTurn,

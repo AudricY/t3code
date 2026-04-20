@@ -1321,6 +1321,7 @@ export function makeOpenCodeAdapterLive(_options?: OpenCodeAdapterLiveOptions) {
         provider: PROVIDER,
         capabilities: {
           sessionModelSwitch: "in-session",
+          supportsForkResume: false,
         },
         startSession,
         sendTurn,

@@ -16,6 +16,7 @@ import {
 const ProjectionCheckpointDbRowSchema = ProjectionCheckpoint.mapFields(
   Struct.assign({
     files: Schema.fromJsonString(Schema.Array(OrchestrationCheckpointFile)),
+    resumeCursor: Schema.fromJsonString(Schema.NullOr(Schema.Unknown)),
   }),
 );
 
@@ -60,7 +61,8 @@ const makeProjectionCheckpointRepository = Effect.gen(function* () {
           checkpoint_turn_count,
           checkpoint_ref,
           checkpoint_status,
-          checkpoint_files_json
+          checkpoint_files_json,
+          resume_cursor_json
         )
         VALUES (
           ${row.threadId},
@@ -74,7 +76,8 @@ const makeProjectionCheckpointRepository = Effect.gen(function* () {
           ${row.checkpointTurnCount},
           ${row.checkpointRef},
           ${row.status},
-          ${row.files}
+          ${row.files},
+          ${row.resumeCursor}
         )
         ON CONFLICT (thread_id, turn_id)
         DO UPDATE SET
@@ -84,7 +87,8 @@ const makeProjectionCheckpointRepository = Effect.gen(function* () {
           checkpoint_turn_count = excluded.checkpoint_turn_count,
           checkpoint_ref = excluded.checkpoint_ref,
           checkpoint_status = excluded.checkpoint_status,
-          checkpoint_files_json = excluded.checkpoint_files_json
+          checkpoint_files_json = excluded.checkpoint_files_json,
+          resume_cursor_json = COALESCE(excluded.resume_cursor_json, projection_turns.resume_cursor_json)
       `,
   });
 
@@ -101,7 +105,8 @@ const makeProjectionCheckpointRepository = Effect.gen(function* () {
           checkpoint_status AS "status",
           checkpoint_files_json AS "files",
           assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
+          completed_at AS "completedAt",
+          COALESCE(resume_cursor_json, 'null') AS "resumeCursor"
         FROM projection_turns
         WHERE thread_id = ${threadId}
           AND checkpoint_turn_count IS NOT NULL
@@ -122,7 +127,8 @@ const makeProjectionCheckpointRepository = Effect.gen(function* () {
           checkpoint_status AS "status",
           checkpoint_files_json AS "files",
           assistant_message_id AS "assistantMessageId",
-          completed_at AS "completedAt"
+          completed_at AS "completedAt",
+          COALESCE(resume_cursor_json, 'null') AS "resumeCursor"
         FROM projection_turns
         WHERE thread_id = ${threadId}
           AND checkpoint_turn_count = ${checkpointTurnCount}

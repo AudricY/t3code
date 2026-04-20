@@ -256,6 +256,7 @@ export const OrchestrationCheckpointSummary = Schema.Struct({
   files: Schema.Array(OrchestrationCheckpointFile),
   assistantMessageId: Schema.NullOr(MessageId),
   completedAt: IsoDateTime,
+  resumeCursor: Schema.optional(Schema.Unknown),
 });
 export type OrchestrationCheckpointSummary = typeof OrchestrationCheckpointSummary.Type;
 
@@ -965,6 +966,7 @@ export const ThreadForkedPayload = Schema.Struct({
   forkedFromThreadId: ThreadId,
   forkedFromTurnId: TurnId,
   messagesSnapshot: Schema.Array(OrchestrationMessage),
+  sourceResumeCursor: Schema.optional(Schema.Unknown),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
