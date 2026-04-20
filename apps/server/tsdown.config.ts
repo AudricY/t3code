@@ -12,6 +12,6 @@ export default defineConfig({
   noExternal: (id) => id.startsWith("@t3tools/") || id.startsWith("effect-acp"),
   inlineOnly: false,
   banner: {
-    js: "#!/usr/bin/env node\n",
+    js: "#!/usr/bin/env bun\n",
   },
 });
