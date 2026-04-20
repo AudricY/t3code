@@ -17,6 +17,8 @@ Personal fork of `pingdotgg/t3code`. `origin` = fork, `upstream` = pingdotgg (fe
 
 **Web-only.** `apps/desktop` and `apps/marketing` are removed and must not be reintroduced. No Electron, auto-update, IPC/preload, native packaging, or desktop-only branches in server code. Running model is `bun start` (optionally a PWA).
 
+**Providers in scope: Claude and Codex only.** Cursor and OpenCode adapters are kept in-tree to avoid upstream merge conflicts but are not used. When designing features, treat them as dead code — don't widen shared types, UI flows, or branching logic to accommodate them, and don't let their constraints shape a design. If a change for Claude/Codex happens to break Cursor/OpenCode, that's acceptable; don't spend effort keeping them working.
+
 See [FORK.md](./FORK.md) for sync commands, divergence categories, and rebase gotchas.
 
 ## Core Priorities
