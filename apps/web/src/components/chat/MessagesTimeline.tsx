@@ -24,6 +24,7 @@ import {
   GlobeIcon,
   HammerIcon,
   type LucideIcon,
+  MaximizeIcon,
   SquarePenIcon,
   TerminalIcon,
   Undo2Icon,
@@ -36,6 +37,8 @@ import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { ToolResultDialog } from "./ToolResultDialog";
+import { useToolResultDialogStore } from "./toolResultDialogStore";
 import {
   computeStableMessagesTimelineRows,
   MAX_VISIBLE_WORK_LOG_ENTRIES,
@@ -275,9 +278,27 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         ListHeaderComponent={<div className="h-3 sm:h-4" />}
         ListFooterComponent={<div className="h-3 sm:h-4" />}
       />
+      <ToolResultDialogHost />
     </TimelineRowCtx.Provider>
   );
 });
+
+function ToolResultDialogHost() {
+  const current = useToolResultDialogStore((state) => state.current);
+  const close = useToolResultDialogStore((state) => state.close);
+  if (!current) return null;
+  return (
+    <ToolResultDialog
+      open={true}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+      title={current.title}
+      {...(current.subtitle ? { subtitle: current.subtitle } : {})}
+      result={current.result}
+    />
+  );
+}
 
 function keyExtractor(item: MessagesTimelineRow) {
   return item.id;
@@ -989,9 +1010,11 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   const displayText = preview ? `${heading} - ${preview}` : heading;
   const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;
   const previewIsChangedFiles = hasChangedFiles && !workEntry.command && !workEntry.detail;
+  const rawResult = workEntry.rawResult;
+  const openToolResultDialog = useToolResultDialogStore((state) => state.open);
 
   return (
-    <div className="rounded-lg px-1 py-1">
+    <div className="group/work-entry rounded-lg px-1 py-1">
       <div className="flex items-center gap-2 transition-[opacity,translate] duration-200">
         <span
           className={cn("flex size-5 shrink-0 items-center justify-center", iconConfig.className)}
@@ -1065,6 +1088,36 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
             </Tooltip>
           )}
         </div>
+        {rawResult && (
+          <Tooltip>
+            <TooltipTrigger
+              closeDelay={0}
+              delay={200}
+              render={
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="View full tool result"
+                  className="pointer-events-none shrink-0 text-muted-foreground/55 opacity-0 transition-opacity focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover/work-entry:pointer-events-auto group-hover/work-entry:opacity-100"
+                  onClick={() => {
+                    const subtitle = rawCommand ?? workEntry.command ?? workEntry.detail;
+                    openToolResultDialog({
+                      title: heading,
+                      result: rawResult,
+                      ...(subtitle ? { subtitle } : {}),
+                    });
+                  }}
+                />
+              }
+            >
+              <MaximizeIcon className="size-3" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              <p className="text-xs leading-4">View full result</p>
+            </TooltipPopup>
+          </Tooltip>
+        )}
       </div>
       {hasChangedFiles && !previewIsChangedFiles && (
         <div className="mt-1 flex flex-wrap gap-1 pl-6">

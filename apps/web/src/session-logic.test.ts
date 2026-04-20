@@ -1343,6 +1343,198 @@ describe("deriveTimelineEntries", () => {
   });
 });
 
+describe("deriveWorkLogEntries rawResult extraction", () => {
+  it("stores full stdout (and stderr) from ACP rawOutput for command_execution", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "cmd-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          data: {
+            toolCallId: "tool-cmd-1",
+            kind: "execute",
+            rawInput: { command: "ls" },
+            rawOutput: {
+              exitCode: 0,
+              stdout: "line1\nline2\nline3\n",
+              stderr: "warning!\n",
+            },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult).toMatchObject({
+      kind: "text",
+      exitCode: 0,
+    });
+    expect(entry?.rawResult?.text).toContain("line1");
+    expect(entry?.rawResult?.text).toContain("line2");
+    expect(entry?.rawResult?.text).toContain("[stderr]");
+    expect(entry?.rawResult?.text).toContain("warning!");
+  });
+
+  it("extracts text from Claude's data.result.content (string form)", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "claude-bash",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Bash",
+        payload: {
+          itemType: "command_execution",
+          title: "Bash",
+          data: {
+            toolName: "Bash",
+            input: { command: "echo hello" },
+            result: {
+              type: "tool_result",
+              tool_use_id: "toolu_abc",
+              content: "hello\nworld\n",
+            },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult).toEqual({
+      kind: "text",
+      text: "hello\nworld\n",
+      toolName: "Bash",
+    });
+  });
+
+  it("extracts text from Claude's data.result.content array of {type:'text'}", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "claude-web",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "WebSearch",
+        payload: {
+          itemType: "web_search",
+          title: "WebSearch",
+          data: {
+            toolName: "WebSearch",
+            result: {
+              type: "tool_result",
+              content: [
+                { type: "text", text: "first result" },
+                { type: "text", text: "second result" },
+              ],
+            },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult?.kind).toBe("text");
+    expect(entry?.rawResult?.text).toContain("first result");
+    expect(entry?.rawResult?.text).toContain("second result");
+  });
+
+  it("falls back to JSON for structured rawOutput without stdout/content", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "grep-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "grep",
+        payload: {
+          itemType: "web_search",
+          title: "grep",
+          data: {
+            toolCallId: "tool-grep-1",
+            rawOutput: { totalFiles: 19, truncated: false },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult?.kind).toBe("json");
+    expect(entry?.rawResult?.text).toContain("totalFiles");
+    expect(entry?.rawResult?.text).toContain("19");
+  });
+
+  it("truncates extremely large output", () => {
+    const huge = "x".repeat(300_000);
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "big-cmd",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          data: {
+            rawOutput: { exitCode: 0, stdout: huge, stderr: "" },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult?.truncated).toBe(true);
+    expect((entry?.rawResult?.text.length ?? 0) < huge.length).toBe(true);
+    expect(entry?.rawResult?.text).toContain("truncated");
+  });
+
+  it("completed entry's rawResult wins over earlier partial update", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "cmd-update",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "tool.updated",
+        summary: "Ran command",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          data: {
+            toolCallId: "tool-1",
+            rawOutput: { exitCode: 0, stdout: "partial" },
+          },
+        },
+      }),
+      makeActivity({
+        id: "cmd-complete",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "tool.completed",
+        summary: "Ran command",
+        payload: {
+          itemType: "command_execution",
+          title: "Ran command",
+          data: {
+            toolCallId: "tool-1",
+            rawOutput: { exitCode: 0, stdout: "complete output" },
+          },
+        },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult?.text).toContain("complete output");
+    expect(entry?.rawResult?.text).not.toContain("partial");
+  });
+
+  it("does not set rawResult when no output data is present", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "approval",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "approval.requested",
+        summary: "Approval requested",
+        tone: "approval",
+        payload: { requestId: "req-1", requestKind: "command" },
+      }),
+    ];
+    const [entry] = deriveWorkLogEntries(activities, undefined);
+    expect(entry?.rawResult).toBeUndefined();
+  });
+});
+
 describe("deriveWorkLogEntries context window handling", () => {
   it("excludes context window updates from the work log", () => {
     const entries = deriveWorkLogEntries(

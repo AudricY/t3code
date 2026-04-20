@@ -49,7 +49,20 @@ export interface WorkLogEntry {
   toolTitle?: string;
   itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
+  rawResult?: WorkLogRawResult;
 }
+
+export interface WorkLogRawResult {
+  kind: "text" | "json";
+  text: string;
+  truncated?: boolean;
+  exitCode?: number;
+  toolName?: string;
+}
+
+// Cap stored per-entry to bound memory for pathological outputs. Still generous
+// enough that typical web_search / bash results fit whole.
+const MAX_RAW_RESULT_CHARS = 256 * 1024;
 
 interface DerivedWorkLogEntry extends WorkLogEntry {
   activityKind: OrchestrationThreadActivity["kind"];
@@ -529,6 +542,7 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
       : null
     : extractToolDetail(payload, title ?? activity.summary);
   const toolCallId = isTaskActivity ? null : extractToolCallId(payload);
+  const rawResult = isTaskActivity ? null : extractRawResult(payload);
   const entry: DerivedWorkLogEntry = {
     id: activity.id,
     createdAt: activity.createdAt,
@@ -566,6 +580,9 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   }
   if (toolCallId) {
     entry.toolCallId = toolCallId;
+  }
+  if (rawResult) {
+    entry.rawResult = rawResult;
   }
   const collapseKey = deriveToolLifecycleCollapseKey(entry);
   if (collapseKey) {
@@ -627,6 +644,7 @@ function mergeDerivedWorkLogEntries(
   const requestKind = next.requestKind ?? previous.requestKind;
   const collapseKey = next.collapseKey ?? previous.collapseKey;
   const toolCallId = next.toolCallId ?? previous.toolCallId;
+  const rawResult = next.rawResult ?? previous.rawResult;
   return {
     ...previous,
     ...next,
@@ -639,6 +657,7 @@ function mergeDerivedWorkLogEntries(
     ...(requestKind ? { requestKind } : {}),
     ...(collapseKey ? { collapseKey } : {}),
     ...(toolCallId ? { toolCallId } : {}),
+    ...(rawResult ? { rawResult } : {}),
   };
 }
 
@@ -920,6 +939,174 @@ function summarizeToolTextOutput(value: string): string | null {
   if (lines.length > 1) {
     return `${lines.length.toLocaleString()} lines`;
   }
+  return null;
+}
+
+function capRawResultText(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_RAW_RESULT_CHARS) {
+    return { text, truncated: false };
+  }
+  return {
+    text: `${text.slice(0, MAX_RAW_RESULT_CHARS)}\n\n[…output truncated — ${(
+      text.length - MAX_RAW_RESULT_CHARS
+    ).toLocaleString()} more characters]`,
+    truncated: true,
+  };
+}
+
+function buildTextRawResult(
+  text: string,
+  extras: { toolName?: string; exitCode?: number } = {},
+): WorkLogRawResult | null {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const capped = capRawResultText(text);
+  return {
+    kind: "text",
+    text: capped.text,
+    ...(capped.truncated ? { truncated: true } : {}),
+    ...(extras.toolName ? { toolName: extras.toolName } : {}),
+    ...(extras.exitCode !== undefined ? { exitCode: extras.exitCode } : {}),
+  };
+}
+
+function buildJsonRawResult(value: unknown, toolName?: string): WorkLogRawResult | null {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(value, null, 2);
+  } catch {
+    return null;
+  }
+  if (!serialized || serialized === "null") {
+    return null;
+  }
+  const capped = capRawResultText(serialized);
+  return {
+    kind: "json",
+    text: capped.text,
+    ...(capped.truncated ? { truncated: true } : {}),
+    ...(toolName ? { toolName } : {}),
+  };
+}
+
+function extractRawResultFromRawOutput(
+  rawOutput: Record<string, unknown>,
+  toolName: string | undefined,
+): WorkLogRawResult | null {
+  const stdout = typeof rawOutput.stdout === "string" ? rawOutput.stdout : "";
+  const stderr = typeof rawOutput.stderr === "string" ? rawOutput.stderr : "";
+  const exitCode = asNumber(rawOutput.exitCode) ?? undefined;
+  if (stdout.length > 0 || stderr.length > 0) {
+    const combined =
+      stderr.length > 0 && stdout.length > 0
+        ? `${stdout}\n\n[stderr]\n${stderr}`
+        : stdout.length > 0
+          ? stdout
+          : `[stderr]\n${stderr}`;
+    return buildTextRawResult(combined, {
+      ...(toolName ? { toolName } : {}),
+      ...(exitCode !== undefined && Number.isInteger(exitCode) ? { exitCode } : {}),
+    });
+  }
+
+  if (typeof rawOutput.content === "string") {
+    return buildTextRawResult(rawOutput.content, toolName ? { toolName } : {});
+  }
+
+  // Fall back to a pretty-printed JSON dump of the whole rawOutput — useful for
+  // web_search / MCP tool outputs that ship structured data rather than text.
+  return buildJsonRawResult(rawOutput, toolName);
+}
+
+function extractRawResultFromContentArray(
+  contentArray: ReadonlyArray<unknown>,
+  toolName: string | undefined,
+): WorkLogRawResult | null {
+  const textPieces: string[] = [];
+  for (const item of contentArray) {
+    const record = asRecord(item);
+    if (!record) continue;
+    if (record.type === "text" && typeof record.text === "string" && record.text.length > 0) {
+      textPieces.push(record.text);
+    }
+  }
+  if (textPieces.length > 0) {
+    return buildTextRawResult(textPieces.join("\n\n"), toolName ? { toolName } : {});
+  }
+  return buildJsonRawResult(contentArray, toolName);
+}
+
+function collectTextFromContentValue(value: unknown, out: string[], depth: number): void {
+  if (depth > 4) return;
+  if (typeof value === "string") {
+    if (value.length > 0) out.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectTextFromContentValue(entry, out, depth + 1);
+    }
+    return;
+  }
+  const record = asRecord(value);
+  if (!record) return;
+  if (typeof record.text === "string" && record.text.length > 0) {
+    out.push(record.text);
+    return;
+  }
+  collectTextFromContentValue(record.content, out, depth + 1);
+}
+
+function extractRawResultFromClaudeResult(
+  result: Record<string, unknown>,
+  toolName: string | undefined,
+): WorkLogRawResult | null {
+  const textPieces: string[] = [];
+  collectTextFromContentValue(result.content, textPieces, 0);
+  if (textPieces.length > 0) {
+    return buildTextRawResult(textPieces.join("\n\n"), toolName ? { toolName } : {});
+  }
+  return buildJsonRawResult(result, toolName);
+}
+
+function extractRawResult(payload: Record<string, unknown> | null): WorkLogRawResult | null {
+  const data = asRecord(payload?.data);
+  if (!data) {
+    return null;
+  }
+  const toolName =
+    asTrimmedString(data.toolName) ??
+    asTrimmedString(asRecord(data.item)?.toolName) ??
+    undefined;
+
+  const rawOutput = asRecord(data.rawOutput);
+  if (rawOutput) {
+    const result = extractRawResultFromRawOutput(rawOutput, toolName);
+    if (result) return result;
+  }
+
+  const contentArray = data.content;
+  if (Array.isArray(contentArray) && contentArray.length > 0) {
+    const result = extractRawResultFromContentArray(contentArray, toolName);
+    if (result) return result;
+  }
+
+  // Claude Agent SDK emits `data.result` as a tool_result block with
+  // `content: string | Array<{type:"text", text:string}>`. Extract text where
+  // possible, fall back to JSON.
+  const claudeResult = asRecord(data.result);
+  if (claudeResult) {
+    const result = extractRawResultFromClaudeResult(claudeResult, toolName);
+    if (result) return result;
+  }
+
+  const itemResult = asRecord(asRecord(data.item)?.result);
+  if (itemResult) {
+    return buildJsonRawResult(itemResult, toolName);
+  }
+
   return null;
 }
 
