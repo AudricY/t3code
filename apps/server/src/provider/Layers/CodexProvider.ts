@@ -32,22 +32,23 @@ import {
   providerModelsFromSettings,
   spawnAndCollect,
   type CommandResult,
-} from "../providerSnapshot";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../providerSnapshot.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   formatCodexCliUpgradeMessage,
   isCodexCliVersionSupported,
   parseCodexCliVersion,
-} from "../codexCliVersion";
+} from "../codexCliVersion.ts";
 import {
   adjustCodexModelsForAccount,
   codexAuthSubLabel,
   codexAuthSubType,
   type CodexAccountSnapshot,
-} from "../codexAccount";
-import { probeCodexDiscovery } from "../codexAppServer";
-import { CodexProvider } from "../Services/CodexProvider";
-import { ServerSettingsService } from "../../serverSettings";
+} from "../codexAccount.ts";
+import { probeCodexDiscovery } from "../codexAppServer.ts";
+import { CodexProvider } from "../Services/CodexProvider.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { ServerSettingsError } from "@t3tools/contracts";
 
 const DEFAULT_CODEX_MODEL_CAPABILITIES: ModelCapabilities = {
@@ -325,7 +326,7 @@ const runCodexCommand = Effect.fn("runCodexCommand")(function* (args: ReadonlyAr
     shell: process.platform === "win32",
     env: {
       ...process.env,
-      ...(codexSettings.homePath ? { CODEX_HOME: codexSettings.homePath } : {}),
+      ...(codexSettings.homePath ? { CODEX_HOME: expandHomePath(codexSettings.homePath) } : {}),
     },
   });
   return yield* spawnAndCollect(codexSettings.binaryPath, command);

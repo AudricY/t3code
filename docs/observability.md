@@ -69,7 +69,7 @@ npx t3
 ```
 
 ```bash
-bun dev
+node --run dev
 ```
 
 ### Option 2: Run With A Local LGTM Stack
@@ -118,7 +118,7 @@ npx t3
 Monorepo web/server dev:
 
 ```bash
-bun dev
+node --run dev
 ```
 
 #### 4. Fully restart after changing env
